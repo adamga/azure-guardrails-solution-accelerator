@@ -4,27 +4,19 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-    {
-        "name": "PowerShell Launch Script",
-        "type": "PowerShell",
-        "request": "launch",
-        "script": "enter path or command to execute e.g.: ${workspaceFolder}/src/foo.ps1 or Invoke-Pester",
-        "cwd": "${workspaceFolder}"
-    },
-<<<<<<< HEAD
-    {
-        "name": "PowerShell Interactive Session",
-        "type": "PowerShell",
-        "request": "launch",
-        "cwd": ""
-    },
-=======
->>>>>>> 90f025b360a6dcb00cdffa6cdf8d2892a3a6f256
         {
-            "name": "PowerShell: Interactive Session",
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "PowerShell Launch Script",
             "type": "PowerShell",
             "request": "launch",
-            "cwd": ""
+            "script": "enter path or command to execute e.g.: ${workspaceFolder}/src/foo.ps1 or Invoke-Pester",
+            "cwd": "${workspaceFolder}"
         }
     ]
 }
