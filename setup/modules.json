@@ -808,11 +808,15 @@
     "Status": "Enabled",
     "Required": "False",
     "Profiles": [2, 3, 4, 5, 6],
-    "Script": "Get-DefenderForCloudConfig -ControlName $msgTable.CtrName11 -MsgTable $msgTable -ReportTime $ReportTime -CBSSubscriptionName $vars.cbssubscriptionName -itsginfosecdefender $vars.itsgcodedefender -CloudUsageProfiles $cloudUsageProfilesString -ModuleProfiles $ModuleProfilesString",
+    "Script": "Get-DefenderForCloudConfig -ControlName $msgTable.CtrName11 -MsgTable $msgTable -ReportTime $ReportTime -CBSSubscriptionName $vars.cbssubscriptionName -itsginfosecdefender $vars.itsgcodedefender -SecurityLAWResourceId $vars.SecurityLAWResourceId -CloudUsageProfiles $cloudUsageProfilesString -ModuleProfiles $ModuleProfilesString",
     "variables": [
       {
         "Name": "cbssubscriptionName",
         "Value": "CBSSubscriptionName"
+      },
+      {
+        "Name": "SecurityLAWResourceId",
+        "Value": "SecurityLAWResourceId"
       }
     ],
     "localVariables": [
