@@ -263,6 +263,7 @@ notAllDfCStandard = Toutes les options de plan de tarification ne sont pas défi
 setDfCToStandard = Veuillez définir les forfaits Defender pour le cloud sur Standard. ({0})
 passwordNotificationsConfigured = Notifications activées
 severityNotificationToEmailConfigured = Notifications de sévérité à un e-mail principal
+sentinelInUseSoEmailNotRequired = Microsoft Sentinel est utilisé pour l'abonnement {0}, les notifications par e-mail pour Defender for Cloud ne sont pas requises.
 
 monitoringChecklist = Liste de vérification de surveillance : Cas d'utilisation
 
