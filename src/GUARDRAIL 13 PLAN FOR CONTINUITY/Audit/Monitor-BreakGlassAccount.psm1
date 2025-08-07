@@ -121,31 +121,60 @@ function Test-BreakGlassAccounts {
       }
     }
     else{
-      # Validate BG account Sign-in activity
+      # Validate BG account Sign-in activity using user signInActivity property
+      # This approach doesn't rely on Log Analytics Workspace retention policy
       $IsSigninCompliant = $false
       $oneYearAgo = (Get-Date).AddYears(-1)
 
-      $urlPath = "/auditLogs/signIns"
+      $firstBGisWithinLastYear = $false
+      $secondBGisWithinLastYear = $false
+
+      # Check first break glass account sign-in activity
       try {
+        $urlPath = "/users/$FirstBreakGlassUPN" + "?`$select=signInActivity"
         $response = Invoke-GraphQuery -urlPath $urlPath -ErrorAction Stop
-        Write-Host "step 2 validate BG account Sign-in $($response.Content.Value.Count)"
+        Write-Host "step 2 validate first BG account Sign-in activity"
 
-        # check 1st break glass account signin
-        $firstBGdata = $response.Content.Value | Where-Object {$_.userPrincipalName -eq $FirstBreakGlassUPN}
-        $dataMostRecentSignInFirstBG = $firstBGdata | Sort-Object createdDateTime -Descending | Select-Object -First 1
-        
-        $dataSignInFirstBG = $dataMostRecentSignInFirstBG | Select-Object id, userDisplayName, userPrincipalName, createdDateTime, userId
-        $firstBGisWithinLastYear =  $dataSignInFirstBG.createdDateTime -ge $oneYearAgo
+        $signInActivity = $response.Content.signInActivity
+        if ($signInActivity -and $signInActivity.lastSignInDateTime) {
+          $lastSignInDate = [DateTime]::Parse($signInActivity.lastSignInDateTime)
+          $firstBGisWithinLastYear = $lastSignInDate -ge $oneYearAgo
+          Write-Host "step 2 firstBG lastSignInDateTime: $($signInActivity.lastSignInDateTime), isWithinLastYear: $firstBGisWithinLastYear"
+        } elseif ($signInActivity -and $signInActivity.lastNonInteractiveSignInDateTime) {
+          # Fallback to non-interactive sign-in if interactive sign-in is not available
+          $lastSignInDate = [DateTime]::Parse($signInActivity.lastNonInteractiveSignInDateTime)
+          $firstBGisWithinLastYear = $lastSignInDate -ge $oneYearAgo
+          Write-Host "step 2 firstBG lastNonInteractiveSignInDateTime: $($signInActivity.lastNonInteractiveSignInDateTime), isWithinLastYear: $firstBGisWithinLastYear"
+        } else {
+          Write-Host "step 2 firstBG no sign-in activity found"
+          $firstBGisWithinLastYear = $false
+        }
+      }
+      catch {
+        $ErrorList.Add("Failed to call Microsoft Graph REST API at URL '$urlPath'; returned error message: $_")
+        Write-Warning "Error: Failed to call Microsoft Graph REST API at URL '$urlPath'; returned error message: $_"
+      }
 
-        Write-Host "step 2 firstBGisWithinLastYear:  $firstBGisWithinLastYear"
-        
-        # check 2nd break glass account signin
-        $secondBGdata = $response.Content.Value | Where-Object {$_.userPrincipalName -eq $SecondBreakGlassUPN}
-        $dataMostRecentSignInSecondBG = $secondBGdata | Sort-Object createdDateTime -Descending | Select-Object -First 1
-        
-        $dataSignInSecondBG = $dataMostRecentSignInSecondBG | Select-Object id, userDisplayName, userPrincipalName, createdDateTime, userId
-        $secondBGisWithinLastYear =  $dataSignInSecondBG.createdDateTime -ge $oneYearAgo
-        Write-Host "step 2 secondBGisWithinLastYear:  $secondBGisWithinLastYear"
+      # Check second break glass account sign-in activity
+      try {
+        $urlPath = "/users/$SecondBreakGlassUPN" + "?`$select=signInActivity"
+        $response = Invoke-GraphQuery -urlPath $urlPath -ErrorAction Stop
+        Write-Host "step 2 validate second BG account Sign-in activity"
+
+        $signInActivity = $response.Content.signInActivity
+        if ($signInActivity -and $signInActivity.lastSignInDateTime) {
+          $lastSignInDate = [DateTime]::Parse($signInActivity.lastSignInDateTime)
+          $secondBGisWithinLastYear = $lastSignInDate -ge $oneYearAgo
+          Write-Host "step 2 secondBG lastSignInDateTime: $($signInActivity.lastSignInDateTime), isWithinLastYear: $secondBGisWithinLastYear"
+        } elseif ($signInActivity -and $signInActivity.lastNonInteractiveSignInDateTime) {
+          # Fallback to non-interactive sign-in if interactive sign-in is not available
+          $lastSignInDate = [DateTime]::Parse($signInActivity.lastNonInteractiveSignInDateTime)
+          $secondBGisWithinLastYear = $lastSignInDate -ge $oneYearAgo
+          Write-Host "step 2 secondBG lastNonInteractiveSignInDateTime: $($signInActivity.lastNonInteractiveSignInDateTime), isWithinLastYear: $secondBGisWithinLastYear"
+        } else {
+          Write-Host "step 2 secondBG no sign-in activity found"
+          $secondBGisWithinLastYear = $false
+        }
       }
       catch {
         $ErrorList.Add("Failed to call Microsoft Graph REST API at URL '$urlPath'; returned error message: $_")
