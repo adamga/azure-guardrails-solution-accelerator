@@ -982,7 +982,14 @@ function Get-allowedLocationCAPCompliance {
         }
     }
 
-    $locationBasedPolicies = $caps | Where-Object { $_.conditions.locations.includeLocations -in $validLocations.ID -and $_.state -eq 'enabled' }
+    # Check for policies that include Canada locations (grant access to Canada)
+    $includeLocationPolicies = $caps | Where-Object { $_.conditions.locations.includeLocations -in $validLocations.ID -and $_.state -eq 'enabled' }
+    
+    # Check for policies that exclude Canada locations (block access from everywhere except Canada)
+    $excludeLocationPolicies = $caps | Where-Object { $_.conditions.locations.excludeLocations -in $validLocations.ID -and $_.state -eq 'enabled' }
+    
+    # Combine both types of compliant location-based policies
+    $locationBasedPolicies = @($includeLocationPolicies) + @($excludeLocationPolicies)
 
     if ($validLocations.count -ne 0) {
         #if there is at least one location with Canada only, we are good. If no Canada Only policy, not compliant.
