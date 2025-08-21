@@ -50,10 +50,10 @@ All named resources will have the first 6 characters of the tenant Id appended t
 
 |Parameter|Description|Is Required| Default Value | Validation Pattern |
 |---------|-----------|-----------|---------------|---------|
-|keyVaultName|Name prefix for the KeyVault resource | True | 'guardrails' | '^[a-z0-9]{3,12}$' |
-|resourcegroup|Resource Group name prefix for the deployed the solution| True | 'guardrails' | '^[a-z0-9][a-z0-9-_]{2,64}$' |
+|keyVaultName|Name prefix for the KeyVault resource | True | 'guardrails' | '^[a-z][a-z0-9-]{1,10}[a-z0-9]$\|^[a-z][a-z0-9]$' |
+|resourcegroup|Resource Group name prefix for the deployed the solution (must contain 'guardrails')| True | 'guardrails' | '^[a-zA-Z0-9][a-zA-Z0-9_.\-]*guardrails[a-zA-Z0-9_.\-]*$\|^guardrails$' |
 |region|Location to deploy. 'canadacentral' is the default| False | 'canadacentral' | _Azure Region Name_|
-|storageaccountName|name prefix of the storage account to be used. 4 random characters will be added to this name to avoid conflicts| True | 'guardrails' | '^[a-z0-9][a-z0-9]{2,11}$' |
+|storageaccountName|name prefix of the storage account to be used. 4 random characters will be added to this name to avoid conflicts| True | 'guardrails' | '^[a-z0-9]{3,15}$' |
 |logAnalyticsworkspaceName| name prefix for the Log Analytics workspace| True | 'guardrails' | '^[a-z0-9][a-z0-9-_]{2,51}[a-z0-9]$' |
 |autoMationAccountName| Name prefix for the Automation Account | True | 'guardrails' | '^[a-z0-9][a-z0-9-_]{2,40}[a-z0-9]$' |
 |FirstBreakGlassAccountUPN| User principal name of the first break glass account (ex: breakglass@contoso.com) | True | | '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$' |
@@ -74,6 +74,30 @@ All named resources will have the first 6 characters of the tenant Id appended t
 |cloudUsageProfiles| Specifies the [Cloud Usage Profiles](https://github.com/canada-ca/cloud-guardrails/blob/master/EN/00_Applicable-Scope.md) as a comma-separated string. Example: "1,2,3" | False | 'default' | '^(default|[0-9](,[0-9])+?)$'|
 
 Save the file and exit VSCode [Ctrl+S] & [Ctrl+Q] .
+
+## Validation Rules for Resource Names
+
+The solution includes improved validation for resource naming parameters to ensure compliance with Azure naming conventions and solution requirements:
+
+### Key Vault Name (`keyVaultName`)
+- Must start with a lowercase letter
+- 2-12 characters total (solution adds ~12 character suffix)
+- Can contain lowercase letters, numbers, and hyphens
+- Cannot have consecutive hyphens
+- Cannot end with a hyphen
+- Must be lowercase only
+
+### Resource Group Name (`resourcegroup`) 
+- Must contain the word "guardrails"
+- Can contain letters, numbers, underscores, periods, and hyphens
+- Cannot end with a period
+- Up to 90 characters total
+
+### Storage Account Name (`storageaccountName`)
+- 3-15 characters total (solution adds ~9 character suffix)
+- Can contain only lowercase letters and numbers
+- No hyphens or other special characters allowed
+- Must be lowercase only
 
 Note about policy definitions:
 
