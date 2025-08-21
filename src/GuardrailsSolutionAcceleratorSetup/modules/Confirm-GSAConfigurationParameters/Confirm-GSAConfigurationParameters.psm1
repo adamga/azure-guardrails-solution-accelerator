@@ -134,11 +134,11 @@ Function Confirm-GSAConfigurationParameters {
     $paramsValidationTable = @{
         keyVaultName                      = @{
             IsRequired        = $true
-            ValidationPattern = '^[a-z0-9][a-z0-9-]{3,12}$'
+            ValidationPattern = '^[a-z][a-z0-9-]{1,10}[a-z0-9]$|^[a-z][a-z0-9]$'
         }
         resourcegroup                     = @{
             IsRequired        = $true
-            ValidationPattern = '^[a-z0-9][a-z0-9-_]{2,64}$'
+            ValidationPattern = '^[a-zA-Z0-9][a-zA-Z0-9_.\-]*guardrails[a-zA-Z0-9_.\-]*$|^guardrails$'
         }
         region                            = @{
             IsRequired     = $false
@@ -146,7 +146,7 @@ Function Confirm-GSAConfigurationParameters {
         }
         storageaccountName                = @{
             IsRequired        = $true
-            ValidationPattern = '^[a-z0-9][a-z0-9]{2,11}$'
+            ValidationPattern = '^[a-z0-9]{3,15}$'
         }
         logAnalyticsworkspaceName         = @{
             IsRequired        = $true
@@ -263,6 +263,38 @@ Function Confirm-GSAConfigurationParameters {
         if (![string]::IsNUllOrEmpty($paramValue) -and $null -ne $paramValidation.ValidationPattern -and $paramValue -inotmatch $paramValidation.ValidationPattern) {
             Write-Error "Parameter '$paramName' value '$paramValue' does not match the expected pattern '$($paramValidation.ValidationPattern)'."
             break
+        }
+        
+        # Additional custom validations for specific parameters
+        if (![string]::IsNUllOrEmpty($paramValue)) {
+            switch ($paramName) {
+                'keyVaultName' {
+                    # Check for consecutive hyphens (not allowed in Azure Key Vault names)
+                    if ($paramValue -match '--') {
+                        Write-Error "Parameter '$paramName' value '$paramValue' contains consecutive hyphens, which are not allowed for Azure Key Vault names."
+                        break
+                    }
+                    # Ensure lowercase only (Azure Key Vault requirement)
+                    if ($paramValue -cmatch '[A-Z]') {
+                        Write-Error "Parameter '$paramName' value '$paramValue' contains uppercase letters. Azure Key Vault names must be lowercase."
+                        break
+                    }
+                }
+                'resourcegroup' {
+                    # Check that it doesn't end with a period (Azure Resource Group requirement)
+                    if ($paramValue -match '\.$') {
+                        Write-Error "Parameter '$paramName' value '$paramValue' ends with a period, which is not allowed for Azure Resource Group names."
+                        break
+                    }
+                }
+                'storageaccountName' {
+                    # Ensure lowercase only (Azure Storage Account requirement) 
+                    if ($paramValue -cmatch '[A-Z]') {
+                        Write-Error "Parameter '$paramName' value '$paramValue' contains uppercase letters. Azure Storage Account names must be lowercase."
+                        break
+                    }
+                }
+            }
         }
     }
 
