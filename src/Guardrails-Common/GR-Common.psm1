@@ -744,15 +744,46 @@ function Invoke-GraphQuery {
         $uri = "https://graph.microsoft.com/v1.0$urlPath" -as [uri]
         
         $response = Invoke-AzRestMethod -Uri $uri -Method GET -ErrorAction Stop
-
+        $initialContent = $response.Content | ConvertFrom-Json
+        
+        # Initialize variables for pagination
+        $allResults = @()
+        $currentContent = $initialContent
+        
+        # Handle pagination if the response contains a 'value' property
+        if ($null -ne $currentContent.value) {
+            # Add initial page results
+            $allResults += $currentContent.value
+            
+            # Follow pagination links if they exist
+            while ($null -ne $currentContent.'@odata.nextLink') {
+                try {
+                    $nextUri = $currentContent.'@odata.nextLink' -as [uri]
+                    $nextResponse = Invoke-AzRestMethod -Uri $nextUri -Method GET -ErrorAction Stop
+                    $currentContent = $nextResponse.Content | ConvertFrom-Json
+                    
+                    if ($null -ne $currentContent.value) {
+                        $allResults += $currentContent.value
+                    }
+                }
+                catch {
+                    Write-Warning "Failed to retrieve paginated results from '$($currentContent.'@odata.nextLink')': $($_.Exception.Message)"
+                    break
+                }
+            }
+            
+            # Replace the value array with all paginated results
+            $initialContent.value = $allResults
+        }
+        
+        @{
+            Content    = $initialContent
+            StatusCode = $response.StatusCode
+        }
     }
     catch {
         Write-Error "An error occured constructing the URI or while calling Graph query for URI GET '$uri': $($_.Exception.Message)"
-    }
-    
-    @{
-        Content    = $response.Content | ConvertFrom-Json
-        StatusCode = $response.StatusCode
+        return $null
     }
 }
 
