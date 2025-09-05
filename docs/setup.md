@@ -185,6 +185,24 @@ For this feature to deploy, the following values must also existing the config.j
 
 The Defender for Cloud automated Lighthouse delegation deployment to each subscription may take up to 24 hours to apply. If, after 24 hours, all subscriptions are not showing as properly delegated, ensure that the the Microsoft.ManagedServices and Microsoft.PolicyInsights Resource Providers are registered in each target subscription. Check that a Remediation Task exists at the target management group (on the customer side), and review it for deployment failures.
 
+**Microsoft.ManagedServices Resource Provider Registration Issues:**
+
+If the backend runbook encounters authorization errors when attempting to register the Microsoft.ManagedServices resource provider, the error handling has been enhanced to:
+- Log detailed warning messages with remediation guidance
+- Continue execution instead of failing completely
+- Provide specific instructions for manual intervention
+
+Common authorization error scenarios:
+1. **Insufficient Permissions**: The automation account's managed identity lacks permission to register resource providers
+   - **Solution**: Ensure the service principal has 'Contributor' or 'Resource Provider Contributor' role on the affected subscriptions
+   - **Alternative**: Manually register the Microsoft.ManagedServices resource provider in each subscription
+
+2. **Permission Denied at Subscription Level**: The lighthouse delegation may not have sufficient permissions
+   - **Solution**: Review and update the lighthouse delegation permissions to include resource provider registration rights
+   - **Manual Registration**: Use Azure CLI or PowerShell to register the provider: `Register-AzResourceProvider -ProviderNamespace Microsoft.ManagedServices`
+
+The improved error handling ensures the runbook continues execution and provides actionable guidance in the logs for resolving these permission issues.
+
 ## Removing an existing deployment
 
 In the event that an existing Guardrails deployment needs to be removed, the GuardrailsSolutionAcceleratorSetup has built-in modules to ensure a complete clean up. The modules are not imported automatically, but can be manually imported as shown below:
