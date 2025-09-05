@@ -783,7 +783,11 @@ function Invoke-GraphQuery {
     }
     catch {
         Write-Error "An error occured constructing the URI or while calling Graph query for URI GET '$uri': $($_.Exception.Message)"
-        return $null
+        # Return empty structure to maintain backward compatibility
+        return @{
+            Content    = $null
+            StatusCode = 0
+        }
     }
 }
 
