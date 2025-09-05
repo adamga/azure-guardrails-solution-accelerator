@@ -101,52 +101,101 @@ If ($lighthouseTargetManagementGroupID) {
     ## switching context for each subscription is slow, using REST API and jobs instead
     $queryJobs = @()
     ForEach ($subscription in $lighthouseTargetSubscriptions) {
-        $uri = "https://management.azure.com/subscriptions/{0}/providers/{1}?api-version=2021-04-01" -f $subscription,'Microsoft.ManagedServices'
-        $queryJobs += Invoke-AzRestMethod -Method GET -Uri $uri -AsJob
+        try {
+            $uri = "https://management.azure.com/subscriptions/{0}/providers/{1}?api-version=2021-04-01" -f $subscription,'Microsoft.ManagedServices'
+            $queryJobs += Invoke-AzRestMethod -Method GET -Uri $uri -AsJob
+        }
+        catch {
+            Write-Warning "Failed to create query job for subscription '$subscription' to check Microsoft.ManagedServices resource provider status. Error: $($_.Exception.Message)"
+            Add-LogEntry 'Warning' "Failed to create query job for subscription '$subscription' to check Microsoft.ManagedServices resource provider status. Error: $($_.Exception.Message)" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
+                -additionalValues @{reportTime=$ReportTime; locale=$locale}
+            continue
+        }
     }
 
     Write-Output "Waiting for '$($queryJobs.count)' query resource provider jobs to complete (up to 15 minutes)..."
-    $queryJobs | Wait-Job -Timeout (New-TimeSpan -Minutes 15).TotalSeconds
+    if ($queryJobs.count -gt 0) {
+        $queryJobs | Wait-Job -Timeout (New-TimeSpan -Minutes 15).TotalSeconds
+    } else {
+        Write-Warning "No query jobs were created to check Microsoft.ManagedServices resource provider status. This may indicate permission issues accessing the subscriptions."
+        Add-LogEntry 'Warning' "No query jobs were created to check Microsoft.ManagedServices resource provider status. This may indicate permission issues accessing the subscriptions." -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
+            -additionalValues @{reportTime=$ReportTime; locale=$locale}
+    }
 
     $registerJobs = @()
     ForEach ($job in $queryJobs) {
-        $jobData = $job | Receive-Job | Select-Object -ExpandProperty Content | ConvertFrom-Json
-		Write-Output "JobData: $($jobData | convertto-json)"
-        $subscriptionId = $jobData.id.split('/')[2]
+        try {
+            $jobData = $job | Receive-Job | Select-Object -ExpandProperty Content | ConvertFrom-Json
+            Write-Output "JobData: $($jobData | convertto-json)"
+            $subscriptionId = $jobData.id.split('/')[2]
 
-        If ($jobData.registrationState -notin ('Registered','Registering')) {
-            Write-Warning "Subscription '$subscriptionID' was not registered for the 'Microsoft.ManagedServices' resource provider, attempting to register"
-            Add-LogEntry 'Warning' "Subscription '$subscriptionID' was not registered for the 'Microsoft.ManagedServices' resource provider, attempting to register" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
-                -additionalValues @{reportTime=$ReportTime; locale=$locale}
+            If ($jobData.registrationState -notin ('Registered','Registering')) {
+                Write-Warning "Subscription '$subscriptionID' was not registered for the 'Microsoft.ManagedServices' resource provider, attempting to register"
+                Add-LogEntry 'Warning' "Subscription '$subscriptionID' was not registered for the 'Microsoft.ManagedServices' resource provider, attempting to register" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
+                    -additionalValues @{reportTime=$ReportTime; locale=$locale}
 
-            $uri = "https://management.azure.com/subscriptions/{0}/providers/{1}/register?api-version=2021-04-01" -f $subscriptionId,'Microsoft.ManagedServices'
-            
-			Write-Output "Register job URI: $uri"
-            $registerJobs += Invoke-AzRestMethod -Method POST -Uri $uri -AsJob
+                $uri = "https://management.azure.com/subscriptions/{0}/providers/{1}/register?api-version=2021-04-01" -f $subscriptionId,'Microsoft.ManagedServices'
+                
+                Write-Output "Register job URI: $uri"
+                $registerJobs += Invoke-AzRestMethod -Method POST -Uri $uri -AsJob
+            }
+            Else {
+                Write-Output "Subscription '$subscriptionId' already has 'Microsoft.ManagedServices' RP in registerd or registering state ('$($jobData.registrationState)')..."
+            }
         }
-        Else {
-            Write-Output "Subscription '$subscriptionId' already has 'Microsoft.ManagedServices' RP in registerd or registering state ('$($jobData.registrationState)')..."
+        catch {
+            # Handle query job errors (e.g., authorization failures)
+            $errorMessage = $_.Exception.Message
+            if ($job.Error) {
+                $errorMessage = $job.Error
+            }
+            Write-Warning "Failed to query Microsoft.ManagedServices resource provider status for a subscription. Error: $errorMessage"
+            Add-LogEntry 'Warning' "Failed to query Microsoft.ManagedServices resource provider status for a subscription. This may be due to insufficient permissions. Error: $errorMessage" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
+                -additionalValues @{reportTime=$ReportTime; locale=$locale}
+            continue
         }
     }
 
     Write-Host "Waiting for '$($registerJobs.count)' to complete (up to 15 minutes)..."
-    $registerJobs | Wait-Job -Timeout (New-TimeSpan -Minutes 15).TotalSeconds
+    if ($registerJobs.count -gt 0) {
+        $registerJobs | Wait-Job -Timeout (New-TimeSpan -Minutes 15).TotalSeconds
+    } else {
+        Write-Output "No registration jobs were created - all subscriptions may already have Microsoft.ManagedServices resource provider registered or access was denied."
+    }
 
     ForEach ($job in $registerJobs) {
-        $jobData = $job | Receive-Job | Select-Object -ExpandProperty Content | ConvertFrom-Json
-		Write-Output "JobData: $($jobData | convertto-json)"
-        $subscriptionId = $jobData.id.split('/')[2]
+        try {
+            $jobData = $job | Receive-Job | Select-Object -ExpandProperty Content | ConvertFrom-Json
+            Write-Output "JobData: $($jobData | convertto-json)"
+            $subscriptionId = $jobData.id.split('/')[2]
 
-        Write-Output "Checking on Lighthouse RP registration job status for subscription '$subscriptionId...'"
-        If ($job.error) {
-            Write-Error "Subscription '$subscriptionID' failed to register for the 'Microsoft.ManagedServices' resource provider. Error: $($job.error)"
-            Add-LogEntry 'Error' "Subscription '$subscriptionID' failed to register for the 'Microsoft.ManagedServices' resource provider. Error: $($job.error)" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
+            Write-Output "Checking on Lighthouse RP registration job status for subscription '$subscriptionId...'"
+            If ($job.error) {
+                $errorMessage = $job.error
+                # Check if this is an authorization error
+                if ($errorMessage -like "*AuthorizationFailed*" -or $errorMessage -like "*does not have authorization*") {
+                    Write-Warning "Subscription '$subscriptionID' failed to register for the 'Microsoft.ManagedServices' resource provider due to insufficient permissions. Please ensure the service principal has 'Contributor' or 'Resource Provider Contributor' role on the subscription, or manually register the Microsoft.ManagedServices resource provider. Error: $errorMessage"
+                    Add-LogEntry 'Warning' "Subscription '$subscriptionID' failed to register for the 'Microsoft.ManagedServices' resource provider due to insufficient permissions. Please ensure the service principal has 'Contributor' or 'Resource Provider Contributor' role on the subscription, or manually register the Microsoft.ManagedServices resource provider. Error: $errorMessage" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
+                        -additionalValues @{reportTime=$ReportTime; locale=$locale}
+                } else {
+                    Write-Error "Subscription '$subscriptionID' failed to register for the 'Microsoft.ManagedServices' resource provider. Error: $errorMessage"
+                    Add-LogEntry 'Error' "Subscription '$subscriptionID' failed to register for the 'Microsoft.ManagedServices' resource provider. Error: $errorMessage" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
+                        -additionalValues @{reportTime=$ReportTime; locale=$locale}
+                }
+            }
+            Else {
+                Write-Output "Subscription '$subscriptionID' request to register 'Microsoft.ManagedServices' resource provider submitted successfully, registration status '$($jobData.registrationState)'"
+                Add-LogEntry 'Information' "Subscription '$subscriptionID' request to register 'Microsoft.ManagedServices' resource provider submitted successfully, registration status '$($jobData.registrationState)'" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
                 -additionalValues @{reportTime=$ReportTime; locale=$locale}
+            }
         }
-        Else {
-            Write-Output "Subscription '$subscriptionID' request to register 'Microsoft.ManagedServices' resource provider submitted successfully, registration status '$($jobData.registrationState)'"
-            Add-LogEntry 'Information' "Subscription '$subscriptionID' request to register 'Microsoft.ManagedServices' resource provider submitted successfully, registration status '$($jobData.registrationState)'" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
-            -additionalValues @{reportTime=$ReportTime; locale=$locale}
+        catch {
+            # Handle registration job errors
+            $errorMessage = $_.Exception.Message
+            Write-Warning "Failed to process Microsoft.ManagedServices resource provider registration job. Error: $errorMessage"
+            Add-LogEntry 'Warning' "Failed to process Microsoft.ManagedServices resource provider registration job. Error: $errorMessage" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
+                -additionalValues @{reportTime=$ReportTime; locale=$locale}
+            continue
         }
     }
 }
