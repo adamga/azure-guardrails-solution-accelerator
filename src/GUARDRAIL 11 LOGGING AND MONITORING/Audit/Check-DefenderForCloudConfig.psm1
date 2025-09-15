@@ -25,7 +25,7 @@ function Get-DefenderForCloudConfig {
                Where-Object { $_.State -eq 'Enabled' -and $_.Name -ne $CBSSubscriptionName }
 
     foreach ($sub in $sublist) {
-        $result = Get-SubscriptionDefenderConfig -Subscription $sub -MsgTable $msgTable
+        $result = Get-SubscriptionDefenderConfig -Subscription $sub -MsgTable $msgTable -ControlName $ControlName -ReportTime $ReportTime -itsginfosecdefender $itsginfosecdefender
         
         if ($EnableMultiCloudProfiles) {
             Add-ProfileToResult -Result $result -CloudUsageProfiles $CloudUsageProfiles -ModuleProfiles $ModuleProfiles -SubscriptionId $sub.Id
@@ -46,7 +46,12 @@ function Get-SubscriptionDefenderConfig {
         [Parameter(Mandatory=$true)]
         $Subscription,
         [Parameter(Mandatory=$true)]
-        $MsgTable
+        $MsgTable,
+        [Parameter(Mandatory=$true)]
+        [string] $ControlName,
+        [Parameter(Mandatory=$true)]
+        [string] $ReportTime,
+        [string] $itsginfosecdefender
     )
 
     Select-AzSubscription -SubscriptionObject $Subscription | Out-Null
@@ -87,6 +92,7 @@ function Get-SubscriptionDefenderConfig {
         itsgcode = $itsginfosecdefender
         ControlName = $ControlName
         ReportTime = $ReportTime
+        SubscriptionName = $Subscription.Name
         Errors = $errors
     }
 }
