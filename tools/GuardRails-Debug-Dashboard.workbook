@@ -1,0 +1,380 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Azure Guardrails Debugging Dashboard\n\nThis dashboard provides enhanced metrics and debugging information for Azure CaC Solution Accelerator operations.\n\n## Key Features:\n- Module runtime performance tracking\n- Success/failure rates per guardrail\n- Error analysis and troubleshooting\n- Automation account permissions overview\n- Resource usage metrics\n\n---"
+      },
+      "name": "Header"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "b8c06b6c-2c8f-4d9b-9a48-5c5c5e7a7b1e",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 2592000000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 86400000,
+                  "createdTime": "2024-01-01T00:00:00.000Z",
+                  "isInitialTime": false,
+                  "grain": 1,
+                  "useDashboardTimeRange": false
+                },
+                {
+                  "durationMs": 604800000,
+                  "createdTime": "2024-01-01T00:00:00.000Z",
+                  "isInitialTime": false,
+                  "grain": 1,
+                  "useDashboardTimeRange": false
+                },
+                {
+                  "durationMs": 2592000000,
+                  "createdTime": "2024-01-01T00:00:00.000Z",
+                  "isInitialTime": false,
+                  "grain": 1,
+                  "useDashboardTimeRange": false
+                }
+              ]
+            },
+            "timeContext": {
+              "durationMs": 2592000000
+            },
+            "label": "Time Range"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "Parameters"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Overall Runbook Performance"
+      },
+      "name": "RunbookHeader"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "GuardRailsRunbookMetrics_CL\n| where TimeGenerated {TimeRange}\n| summarize \n    TotalExecutions = count(),\n    AvgRuntimeMinutes = avg(todouble(TotalRuntimeMinutes_s)),\n    MaxRuntimeMinutes = max(todouble(TotalRuntimeMinutes_s)),\n    MinRuntimeMinutes = min(todouble(TotalRuntimeMinutes_s)),\n    AvgModulesExecuted = avg(todouble(TotalModulesExecuted_s)),\n    AvgSuccessRate = avg(todouble(SuccessRate_s))\n    by RunbookType_s\n| extend \n    RunbookType = RunbookType_s,\n    AverageRuntime = strcat(round(AvgRuntimeMinutes, 2), \" min\"),\n    MaxRuntime = strcat(round(MaxRuntimeMinutes, 2), \" min\"),\n    MinRuntime = strcat(round(MinRuntimeMinutes, 2), \" min\"),\n    SuccessRate = strcat(round(AvgSuccessRate, 1), \"%\")\n| project RunbookType, TotalExecutions, AverageRuntime, MinRuntime, MaxRuntime, AvgModulesExecuted, SuccessRate\n| sort by RunbookType asc",
+        "size": 0,
+        "title": "Runbook Execution Summary",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "TotalExecutions",
+              "formatter": 0
+            },
+            {
+              "columnMatch": "AvgModulesExecuted",
+              "formatter": 0,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            },
+            {
+              "columnMatch": "SuccessRate",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "95%",
+                    "representation": "success",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "85%",
+                    "representation": "2",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "failed",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "RunbookSummary"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Module Performance Analysis"
+      },
+      "name": "ModuleHeader"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "GuardRailsDebugMetrics_CL\n| where TimeGenerated {TimeRange}\n| summarize \n    ExecutionCount = count(),\n    AvgRuntimeSeconds = avg(todouble(RuntimeSeconds_s)),\n    MaxRuntimeSeconds = max(todouble(RuntimeSeconds_s)),\n    SuccessCount = countif(ModuleStatus_s == \"Success\"),\n    FailureCount = countif(ModuleStatus_s == \"Failed\"),\n    WarningCount = countif(ModuleStatus_s == \"Warning\"),\n    AvgResultCount = avg(todouble(ResultCount_s))\n    by ModuleName_s\n| extend \n    SuccessRate = round((todouble(SuccessCount) / todouble(ExecutionCount)) * 100.0, 1),\n    AvgRuntime = strcat(round(AvgRuntimeSeconds, 2), \"s\"),\n    MaxRuntime = strcat(round(MaxRuntimeSeconds, 2), \"s\")\n| project \n    Module = ModuleName_s,\n    Executions = ExecutionCount,\n    SuccessRate = strcat(SuccessRate, \"%\"),\n    AvgRuntime,\n    MaxRuntime,\n    SuccessCount,\n    FailureCount, \n    WarningCount,\n    AvgResults = round(AvgResultCount, 0)\n| sort by todouble(replace(\"%\", \"\", SuccessRate)) asc, Executions desc",
+        "size": 0,
+        "title": "Module Performance Overview",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "SuccessRate",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "95%",
+                    "representation": "success",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "85%",
+                    "representation": "2",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "failed",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "FailureCount",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">",
+                    "thresholdValue": "0",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "WarningCount",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">",
+                    "thresholdValue": "0",
+                    "representation": "yellow",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "ModulePerformance"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Runtime Trends"
+      },
+      "name": "RuntimeHeader"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "GuardRailsRunbookMetrics_CL\n| where TimeGenerated {TimeRange}\n| extend Timestamp = todatetime(Timestamp_s)\n| project Timestamp, RunbookType = RunbookType_s, RuntimeMinutes = todouble(TotalRuntimeMinutes_s)\n| render timechart",
+        "size": 0,
+        "title": "Runbook Runtime Over Time",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "name": "RuntimeTrend"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Error Analysis"
+      },
+      "name": "ErrorHeader"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "GuardRailsDebugMetrics_CL\n| where TimeGenerated {TimeRange} and ModuleStatus_s in (\"Failed\", \"Warning\")\n| where isnotempty(ErrorDetails_s) and ErrorDetails_s != \"\"\n| summarize \n    ErrorCount = count(), \n    LatestOccurrence = max(TimeGenerated),\n    GuardrailsAffected = dcount(GuardrailNumber_s),\n    SampleError = any(ErrorDetails_s)\n    by ModuleName_s, ModuleStatus_s\n| project \n    Module = ModuleName_s,\n    Status = ModuleStatus_s,\n    ErrorCount,\n    GuardrailsAffected,\n    LatestOccurrence,\n    SampleError = substring(SampleError, 0, 100)\n| sort by ErrorCount desc",
+        "size": 0,
+        "title": "Failed and Warning Modules",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "ErrorAnalysis"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Guardrail Compliance Results Summary"
+      },
+      "name": "GuardrailHeader"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "GuardRailsDebugMetrics_CL\n| where TimeGenerated {TimeRange} and isnotempty(GuardrailNumber_s)\n| summarize \n    TotalModules = dcount(ModuleName_s),\n    TotalExecutions = count(),\n    SuccessfulExecutions = countif(ModuleStatus_s == \"Success\"),\n    TotalResults = sum(todouble(ResultCount_s)),\n    MandatoryModules = countif(ControlType_s == \"M\"),\n    RecommendedModules = countif(ControlType_s == \"R\")\n    by GuardrailNumber = GuardrailNumber_s\n| extend \n    SuccessRate = round((todouble(SuccessfulExecutions) / todouble(TotalExecutions)) * 100.0, 1),\n    AvgResultsPerExecution = round(todouble(TotalResults) / todouble(TotalExecutions), 1)\n| project \n    Guardrail = strcat(\"GR \", GuardrailNumber),\n    TotalModules,\n    TotalExecutions,\n    SuccessRate = strcat(SuccessRate, \"%\"),\n    TotalResults,\n    AvgResultsPerExecution,\n    MandatoryModules,\n    RecommendedModules\n| sort by toint(GuardrailNumber) asc",
+        "size": 0,
+        "title": "Results by Guardrail",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "SuccessRate",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "95%",
+                    "representation": "success",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "85%",
+                    "representation": "2",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "failed",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "GuardrailSummary"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Automation Account Permissions"
+      },
+      "name": "PermissionsHeader"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "GuardRailsPermissionInfo_CL\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by RoleDefinitionName_s, Scope_s, ResourceGroupName_s\n| project \n    Role = RoleDefinitionName_s,\n    Scope = Scope_s,\n    ResourceGroup = ResourceGroupName_s,\n    AccountName = AccountName_s,\n    LastChecked = TimeGenerated\n| sort by Role asc",
+        "size": 0,
+        "title": "Current Automation Account Role Assignments",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "Permissions"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Operational Insights"
+      },
+      "name": "InsightsHeader"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let slowModules = GuardRailsDebugMetrics_CL\n| where TimeGenerated {TimeRange}\n| summarize AvgRuntime = avg(todouble(RuntimeSeconds_s)) by ModuleName_s\n| top 5 by AvgRuntime desc\n| project Module = ModuleName_s, AvgRuntimeSeconds = round(AvgRuntime, 2), Category = \"Slowest Modules\";\nlet frequentFailures = GuardRailsDebugMetrics_CL\n| where TimeGenerated {TimeRange} and ModuleStatus_s == \"Failed\"\n| summarize FailureCount = count() by ModuleName_s\n| top 5 by FailureCount desc\n| project Module = ModuleName_s, Value = FailureCount, Category = \"Most Failed Modules\";\nlet highResultModules = GuardRailsDebugMetrics_CL\n| where TimeGenerated {TimeRange}\n| summarize AvgResults = avg(todouble(ResultCount_s)) by ModuleName_s\n| top 5 by AvgResults desc\n| project Module = ModuleName_s, Value = round(AvgResults, 0), Category = \"Highest Result Count\";\nslowModules | union (frequentFailures) | union (highResultModules)\n| project Category, Module, Value = coalesce(todouble(AvgRuntimeSeconds), todouble(Value))\n| sort by Category, Value desc",
+        "size": 0,
+        "title": "Top Issues and Performance Insights",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "Insights"
+    }
+  ],
+  "fallbackResourceIds": [],
+  "fromTemplateId": "community-Workbooks/Empty",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

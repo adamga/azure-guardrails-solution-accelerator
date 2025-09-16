@@ -162,6 +162,16 @@ catch {
 Add-LogEntry 'Information' "Starting execution of main runbook" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName main `
     -additionalValues @{reportTime = $ReportTime; locale = $locale }
 
+# Initialize runbook performance metrics
+$runbookStartTime = Get-Date
+$totalModulesExecuted = 0
+$successfulModules = 0
+$failedModules = 0
+$warningModules = 0
+
+# Log automation account permissions for debugging
+Get-GSAAutomationAccountPermissions -WorkSpaceID $WorkSpaceID -WorkspaceKey $WorkspaceKey -ReportTime $ReportTime
+
 # This loads the file containing all of the messages in the culture specified in the automation account variable "GuardRailsLocale"
 $messagesFileName = "GR-ComplianceChecks-Msgs"
 if (Get-Module -Name GR-ComplianceChecks) {
@@ -193,12 +203,19 @@ $cloudUsageProfilesString = $cloudUsageProfiles -join ','
 
 foreach ($module in $modules) {
     if ($module.Status -eq "Enabled") {
+        # Start timing this module
+        $moduleTimer = Start-GSAModuleTimer -ModuleName $module.modulename
+        $totalModulesExecuted++
+        $moduleStatus = "Failed"  # Default to failed, will be updated on success
+        $moduleResultCount = 0
+        $moduleErrorDetails = ""
+        
         if($enableMultiCloudProfiles) {
             $module.Script += " -EnableMultiCloudProfiles"
             $ModuleProfilesString = $module.Profiles -join ','
         }
         $NewScriptBlock = [scriptblock]::Create($module.Script)
-        Write-Output "Processing Module $($module.modulename)" 
+        Write-Output "Processing Module $($module.modulename)"
         $variables = $module.variables
         $secrets = $module.secrets
         $localVariables = $module.localVariables
@@ -234,12 +251,27 @@ foreach ($module in $modules) {
             #Write-Output "required in module: $($module.Required)."
             $results.ComplianceResults | Add-Member -MemberType NoteProperty -Name "Required" -Value $module.Required -PassThru
             
+            # Count results for metrics
+            $moduleResultCount = if ($results.ComplianceResults) { 
+                if ($results.ComplianceResults -is [array]) { 
+                    $results.ComplianceResults.Count 
+                } else { 1 }
+            } else { 0 }
+            
             #Write-Output "required in results: $($results.Required)."
             New-LogAnalyticsData -Data $results.ComplianceResults -WorkSpaceID $WorkSpaceID -WorkSpaceKey $WorkspaceKey -LogType $LogType | Out-Null
-            if ($null -ne $results.Errors) {
+            
+            if ($null -ne $results.Errors -and $results.Errors.count -gt 0) {
+                $moduleStatus = "Warning"  # Has results but also errors
+                $warningModules++
+                $moduleErrorDetails = "Module completed with $($results.Errors.count) errors: $($results.Errors -join '; ')"
                 "Module $($module.modulename) failed with $($results.Errors.count) errors. $($results.Errors)"
                 New-LogAnalyticsData -Data $results.errors -WorkSpaceID $WorkSpaceID -WorkSpaceKey $WorkspaceKey -LogType "GuardrailsComplianceException" | Out-Null
+            } else {
+                $moduleStatus = "Success"
+                $successfulModules++
             }
+            
             if ($null -ne $results.AdditionalResults) {
                 # There is more data!
                 "Module $($module.modulename) returned $($results.AdditionalResults.count) additional results."
@@ -250,6 +282,9 @@ foreach ($module in $modules) {
             Write-Output "Script running is done for $($module.modulename)"
         }
         catch {
+            $moduleStatus = "Failed"
+            $failedModules++
+            $moduleErrorDetails = $_.Exception.Message
             Write-Output "Caught error while invoking result is $($results.Errors)" 
             $sanitizedScriptblock = $($ExecutionContext.InvokeCommand.ExpandString(($moduleScript -ireplace '\$workspaceKey', '***')))
             
@@ -257,11 +292,32 @@ foreach ($module in $modules) {
                 with error: $_" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName main
             Write-Error "Failed to invoke the module execution script for module '$($module.moduleName)', script '$sanitizedScriptblock' with error: $_"
         }
+        
+        # Log module performance metrics - extract guardrail number from module name if possible
+        $guardrailNumber = ""
+        if ($module.modulename -match "GUARDRAIL\s*(\d+)") {
+            $guardrailNumber = $matches[1]
+        }
+        
+        # Determine control type from module required field
+        $controlType = if ($module.Required -eq $true) { "M" } else { "R" }
+        
+        # Stop timer and log metrics
+        Stop-GSAModuleTimer -Timer $moduleTimer -ModuleStatus $moduleStatus -WorkSpaceID $WorkSpaceID `
+            -WorkspaceKey $WorkspaceKey -ReportTime $ReportTime -ResultCount $moduleResultCount `
+            -ErrorDetails $moduleErrorDetails -GuardrailNumber $guardrailNumber -ControlType $controlType
     }
     else {
         Write-Output "Skipping module $($module.ModuleName). Disabled in the configuration file (modules.json)."
     }
 }
+
+# Log overall runbook performance metrics
+$runbookEndTime = Get-Date
+Add-GSARunbookPerformanceMetrics -WorkSpaceID $WorkSpaceID -WorkspaceKey $WorkspaceKey `
+    -RunbookType "Main" -TotalStartTime $runbookStartTime -TotalEndTime $runbookEndTime `
+    -TotalModulesExecuted $totalModulesExecuted -SuccessfulModules $successfulModules `
+    -FailedModules $failedModules -WarningModules $warningModules -ReportTime $ReportTime
 
 Add-LogEntry 'Information' "Completed execution of main runbook" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName main `
     -additionalValues @{reportTime = $ReportTime; locale = $locale }

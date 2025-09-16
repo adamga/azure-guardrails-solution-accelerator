@@ -70,6 +70,15 @@ get-itsgdata -URL $itsgURL -WorkSpaceID $WorkSpaceID -workspaceKey $WorkspaceKey
 # Checks for Updates available
 Check-UpdateAvailable -WorkSpaceID  $WorkSpaceID -WorkspaceKey $WorkspaceKey -ReportTime $ReportTime
 
+# Initialize backend runbook performance metrics
+$backendStartTime = Get-Date
+$backendOperationsCount = 0
+$backendSuccessCount = 0
+$backendFailureCount = 0
+
+# Log automation account permissions for debugging
+Get-GSAAutomationAccountPermissions -WorkSpaceID $WorkSpaceID -WorkspaceKey $WorkspaceKey -ReportTime $ReportTime
+
 # Updates Tenant info.
 $response = Invoke-AzRestMethod -Method get -uri 'https://graph.microsoft.com/v1.0/organization' | Select-Object -expand Content | convertfrom-json
 $tenantName = $response.value.displayName
@@ -150,6 +159,13 @@ If ($lighthouseTargetManagementGroupID) {
         }
     }
 }
+
+# Log overall backend runbook performance metrics
+$backendEndTime = Get-Date
+Add-GSARunbookPerformanceMetrics -WorkSpaceID $WorkSpaceID -WorkspaceKey $WorkspaceKey `
+    -RunbookType "Backend" -TotalStartTime $backendStartTime -TotalEndTime $backendEndTime `
+    -TotalModulesExecuted $backendOperationsCount -SuccessfulModules $backendSuccessCount `
+    -FailedModules $backendFailureCount -WarningModules 0 -ReportTime $ReportTime
 
 Add-LogEntry 'Information' "Completed execution of backend runbook" -workspaceGuid $WorkSpaceID -workspaceKey $WorkspaceKey -moduleName backend `
     -additionalValues @{reportTime=$ReportTime; locale=$locale}
