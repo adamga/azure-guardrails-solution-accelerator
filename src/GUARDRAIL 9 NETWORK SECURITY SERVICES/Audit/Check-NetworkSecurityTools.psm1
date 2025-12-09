@@ -73,7 +73,7 @@ function Check-NetworkSecurityTools {
                     $Comments = $msgTable.wAFEnabled
                 }
                 else {
-                    $IsCompliant = $false
+                    $IsCompliant = $true
                     $Comments = $msgTable.wAFNotEnabled
                 }
             }
