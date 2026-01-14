@@ -38,11 +38,74 @@ function Check-NetworkSecurityTools {
             # Check for Azure Firewall
             $azureFirewalls = Get-AzFirewall -ErrorAction SilentlyContinue
             
-            # Check for Fortigate VMs (basic check based on naming convention)
-            $fortigateVMs = Get-AzVM | Where-Object { 
-                # Verify it's using Fortigate publisher and offer
-                $_.StorageProfile.ImageReference.Publisher -eq "fortinet" -and
-                $_.StorageProfile.ImageReference.Offer -like "*fortinet*fortigate*"
+            # Check for third-party firewall VMs from various vendors
+            $allVMs = Get-AzVM -ErrorAction SilentlyContinue
+            $firewallVMs = @()
+            $detectedFirewallTypes = @()
+            
+            if ($allVMs) {
+                foreach ($vm in $allVMs) {
+                    # Check for null values to avoid null reference exceptions
+                    if ($null -eq $vm.StorageProfile -or 
+                        $null -eq $vm.StorageProfile.ImageReference -or 
+                        $null -eq $vm.StorageProfile.ImageReference.Publisher -or 
+                        $null -eq $vm.StorageProfile.ImageReference.Offer) {
+                        continue
+                    }
+                    
+                    $publisher = $vm.StorageProfile.ImageReference.Publisher
+                    $offer = $vm.StorageProfile.ImageReference.Offer
+                    
+                    # Check for various firewall vendors
+                    if ($publisher -eq "fortinet" -and $offer -like "*fortinet*fortigate*") {
+                        $firewallVMs += $vm
+                        if ("Fortigate Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Fortigate Firewall"
+                        }
+                    }
+                    elseif ($publisher -eq "paloaltonetworks" -and $offer -like "vmseries*") {
+                        $firewallVMs += $vm
+                        if ("Palo Alto Networks VM-Series Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Palo Alto Networks VM-Series Firewall"
+                        }
+                    }
+                    elseif ($publisher -eq "checkpoint" -and $offer -like "check-point-cg-*") {
+                        $firewallVMs += $vm
+                        if ("Check Point CloudGuard Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Check Point CloudGuard Firewall"
+                        }
+                    }
+                    elseif ($publisher -eq "cisco" -and ($offer -like "*firepower*" -or $offer -like "*fmcv*")) {
+                        $firewallVMs += $vm
+                        if ("Cisco Firepower Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Cisco Firepower Firewall"
+                        }
+                    }
+                    elseif ($publisher -eq "barracudanetworks" -and $offer -like "*barracuda*firewall*") {
+                        $firewallVMs += $vm
+                        if ("Barracuda CloudGen Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Barracuda CloudGen Firewall"
+                        }
+                    }
+                    elseif ($publisher -eq "sophos" -and $offer -like "*sophos*firewall*") {
+                        $firewallVMs += $vm
+                        if ("Sophos XG Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Sophos XG Firewall"
+                        }
+                    }
+                    elseif ($publisher -eq "juniper-networks" -and $offer -like "*vsrx*") {
+                        $firewallVMs += $vm
+                        if ("Juniper vSRX Virtual Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Juniper vSRX Virtual Firewall"
+                        }
+                    }
+                    elseif ($publisher -eq "forcepoint-llc" -and $offer -like "*ngfw*") {
+                        $firewallVMs += $vm
+                        if ("Forcepoint Next-Generation Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Forcepoint Next-Generation Firewall"
+                        }
+                    }
+                }
             }
                         
             # Check for Application Gateway with WAF
@@ -63,9 +126,11 @@ function Check-NetworkSecurityTools {
                 $IsCompliant = $true
                 $Comments = $msgTable.firewallFound -f "Azure Firewall"
             }
-            elseif ($fortigateVMs.Count -gt 0) {
+            elseif ($firewallVMs.Count -gt 0) {
                 $IsCompliant = $true
-                $Comments = $msgTable.firewallFound -f "Fortigate Firewall"
+                # Join multiple firewall types with comma if multiple detected
+                $firewallTypesList = $detectedFirewallTypes -join ", "
+                $Comments = $msgTable.firewallFound -f $firewallTypesList
             }
             elseif ($appGateways.Count -gt 0) {
                 if ($hasWAFEnabled) {
