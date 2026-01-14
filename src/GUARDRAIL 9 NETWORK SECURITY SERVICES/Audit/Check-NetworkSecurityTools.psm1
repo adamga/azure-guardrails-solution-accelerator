@@ -41,45 +41,69 @@ function Check-NetworkSecurityTools {
             # Check for third-party firewall VMs from various vendors
             $allVMs = Get-AzVM -ErrorAction SilentlyContinue
             $firewallVMs = @()
-            $detectedFirewallType = ""
+            $detectedFirewallTypes = @()
             
             if ($allVMs) {
                 foreach ($vm in $allVMs) {
+                    # Check for null values to avoid null reference exceptions
+                    if ($null -eq $vm.StorageProfile -or 
+                        $null -eq $vm.StorageProfile.ImageReference -or 
+                        $null -eq $vm.StorageProfile.ImageReference.Publisher -or 
+                        $null -eq $vm.StorageProfile.ImageReference.Offer) {
+                        continue
+                    }
+                    
                     $publisher = $vm.StorageProfile.ImageReference.Publisher
                     $offer = $vm.StorageProfile.ImageReference.Offer
                     
                     # Check for various firewall vendors
                     if ($publisher -eq "fortinet" -and $offer -like "*fortinet*fortigate*") {
                         $firewallVMs += $vm
-                        $detectedFirewallType = "Fortigate Firewall"
+                        if ("Fortigate Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Fortigate Firewall"
+                        }
                     }
                     elseif ($publisher -eq "paloaltonetworks" -and ($offer -like "vmseries*")) {
                         $firewallVMs += $vm
-                        $detectedFirewallType = "Palo Alto Networks VM-Series Firewall"
+                        if ("Palo Alto Networks VM-Series Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Palo Alto Networks VM-Series Firewall"
+                        }
                     }
                     elseif ($publisher -eq "checkpoint" -and $offer -like "check-point-cg-*") {
                         $firewallVMs += $vm
-                        $detectedFirewallType = "Check Point CloudGuard Firewall"
+                        if ("Check Point CloudGuard Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Check Point CloudGuard Firewall"
+                        }
                     }
                     elseif ($publisher -eq "cisco" -and ($offer -like "*firepower*" -or $offer -like "*fmcv*")) {
                         $firewallVMs += $vm
-                        $detectedFirewallType = "Cisco Firepower Firewall"
+                        if ("Cisco Firepower Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Cisco Firepower Firewall"
+                        }
                     }
                     elseif ($publisher -eq "barracudanetworks" -and $offer -like "*barracuda*firewall*") {
                         $firewallVMs += $vm
-                        $detectedFirewallType = "Barracuda CloudGen Firewall"
+                        if ("Barracuda CloudGen Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Barracuda CloudGen Firewall"
+                        }
                     }
                     elseif ($publisher -eq "sophos" -and $offer -like "*sophos*firewall*") {
                         $firewallVMs += $vm
-                        $detectedFirewallType = "Sophos XG Firewall"
+                        if ("Sophos XG Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Sophos XG Firewall"
+                        }
                     }
                     elseif ($publisher -eq "juniper-networks" -and $offer -like "*vsrx*") {
                         $firewallVMs += $vm
-                        $detectedFirewallType = "Juniper vSRX Virtual Firewall"
+                        if ("Juniper vSRX Virtual Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Juniper vSRX Virtual Firewall"
+                        }
                     }
                     elseif ($publisher -eq "forcepoint-llc" -and $offer -like "*ngfw*") {
                         $firewallVMs += $vm
-                        $detectedFirewallType = "Forcepoint Next-Generation Firewall"
+                        if ("Forcepoint Next-Generation Firewall" -notin $detectedFirewallTypes) {
+                            $detectedFirewallTypes += "Forcepoint Next-Generation Firewall"
+                        }
                     }
                 }
             }
@@ -104,7 +128,9 @@ function Check-NetworkSecurityTools {
             }
             elseif ($firewallVMs.Count -gt 0) {
                 $IsCompliant = $true
-                $Comments = $msgTable.firewallFound -f $detectedFirewallType
+                # Join multiple firewall types with comma if multiple detected
+                $firewallTypesList = $detectedFirewallTypes -join ", "
+                $Comments = $msgTable.firewallFound -f $firewallTypesList
             }
             elseif ($appGateways.Count -gt 0) {
                 if ($hasWAFEnabled) {
