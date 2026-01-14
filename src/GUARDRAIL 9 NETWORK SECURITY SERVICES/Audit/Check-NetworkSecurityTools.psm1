@@ -63,7 +63,7 @@ function Check-NetworkSecurityTools {
                             $detectedFirewallTypes += "Fortigate Firewall"
                         }
                     }
-                    elseif ($publisher -eq "paloaltonetworks" -and ($offer -like "vmseries*")) {
+                    elseif ($publisher -eq "paloaltonetworks" -and $offer -like "vmseries*") {
                         $firewallVMs += $vm
                         if ("Palo Alto Networks VM-Series Firewall" -notin $detectedFirewallTypes) {
                             $detectedFirewallTypes += "Palo Alto Networks VM-Series Firewall"
