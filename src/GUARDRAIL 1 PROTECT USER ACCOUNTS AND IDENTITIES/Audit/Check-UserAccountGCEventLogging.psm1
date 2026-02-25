@@ -7,6 +7,19 @@ function get-AADDiagnosticSettings {
     throw "Failed to retrieve diagnostic settings. Status code: $($response.StatusCode)"
 }
 
+function Test-IsSentinelWorkspace {
+    param(
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$Workspace
+    )
+
+    if (-not $Workspace.Tags) {
+        return $false
+    }
+
+    return $Workspace.Tags.Values -contains "sentinel"
+}
+
 function Check-UserAccountGCEventLogging {
     [CmdletBinding()]
     param (
@@ -90,11 +103,13 @@ function Check-UserAccountGCEventLogging {
             $Comments += $msgTable.logsNotCollected + " Missing logs: $($missingLogs -join ', ')"
         }
 
-        # Check if Read-only lock is in place
-        $lock = Get-AzResourceLock -ResourceGroupName $resourceGroupName -ResourceName $lawName -ResourceType "Microsoft.OperationalInsights/workspaces"
-        if (-not $lock -or $lock.Properties.level -ne "ReadOnly") {
-            $IsCompliant = $false
-            $Comments += $msgTable.readOnlyLaw -f $lawName
+        if (-not (Test-IsSentinelWorkspace -Workspace $law)) {
+            # Check if Read-only lock is in place
+            $lock = Get-AzResourceLock -ResourceGroupName $resourceGroupName -ResourceName $lawName -ResourceType "Microsoft.OperationalInsights/workspaces"
+            if (-not $lock -or $lock.Properties.level -ne "ReadOnly") {
+                $IsCompliant = $false
+                $Comments += $msgTable.readOnlyLaw -f $lawName
+            }
         }
 
     }
