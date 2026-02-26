@@ -1,3 +1,31 @@
+function Get-PolicyAssignmentFromResourceGraph {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string] $Scope,
+        [Parameter(Mandatory = $true)]
+        [string] $PolicyDefinitionId
+    )
+
+    $scopeFilter = $Scope.Replace("'", "''")
+    $policyDefinitionFilter = $PolicyDefinitionId.Replace("'", "''")
+    $query = @"
+policyresources
+| where type =~ 'microsoft.authorization/policyassignments'
+| where tolower(tostring(properties.scope)) == tolower('$scopeFilter')
+| where tolower(tostring(properties.policyDefinitionId)) == tolower('$policyDefinitionFilter')
+| project properties
+"@
+
+    $assignment = Search-AzGraph -UseTenantScope -Query $query -First 1
+    if ($null -eq $assignment) {
+        return $null
+    }
+
+    return [PSCustomObject]@{
+        Properties = $assignment.properties
+    }
+}
+
 function Check-PolicyStatus {
     param (
         [System.Object] $objList,
@@ -31,24 +59,24 @@ function Check-PolicyStatus {
 
         try {
             try{
-                $AssignedPolicyList = Get-AzPolicyAssignment -scope $tempId -PolicyDefinitionId $PolicyID
+                $AssignedPolicyList = Get-PolicyAssignmentFromResourceGraph -Scope $tempId -PolicyDefinitionId $PolicyID
 
             }
             catch{
-                $Errorlist.Add("Failed to execute the 'Get-AzPolicyAssignment' command on policy list for scope '$($tempId)'--verify your permissions and the installion of the Az.Resources module; returned error message: $_" )
-                Write-Error "Error: Failed to execute the 'Get-AzPolicyAssignment' command on policy list for scope '$($tempId)'--verify your permissions and the installion of the Az.Resources module; returned error message: $_"  
+                $Errorlist.Add("Failed to execute the 'Search-AzGraph' command on policy list for scope '$($tempId)'--verify your permissions and the installation of the Az.ResourceGraph module; returned error message: $_" )
+                Write-Error "Error: Failed to execute the 'Search-AzGraph' command on policy list for scope '$($tempId)'--verify your permissions and the installation of the Az.ResourceGraph module; returned error message: $_"  
             }
             try{
-                $AssignedInitiatives = Get-AzPolicyAssignment -scope $tempId -PolicyDefinitionId $InitiativeID #Retrieve Initiatives
+                $AssignedInitiatives = Get-PolicyAssignmentFromResourceGraph -Scope $tempId -PolicyDefinitionId $InitiativeID #Retrieve Initiatives
             }
             catch{
-                $Errorlist.Add("Failed to execute the 'Get-AzPolicyAssignment' command on initiatives for scope '$($tempId)'--verify your permissions and the installion of the Az.Resources module; returned error message: $_" )
-                Write-Error "Error: Failed to execute the 'Get-AzPolicyAssignment' command on initiatives for scope '$($tempId)'--verify your permissions and the installion of the Az.Resources module; returned error message: $_"  
+                $Errorlist.Add("Failed to execute the 'Search-AzGraph' command on initiatives for scope '$($tempId)'--verify your permissions and the installation of the Az.ResourceGraph module; returned error message: $_" )
+                Write-Error "Error: Failed to execute the 'Search-AzGraph' command on initiatives for scope '$($tempId)'--verify your permissions and the installation of the Az.ResourceGraph module; returned error message: $_"  
             }
         }
         catch {
-            $Errorlist.Value.Add("Failed to execute the 'Get-AzPolicyAssignment' command for scope '$($tempId)'--verify your permissions and the installion of the Az.Resources module; returned error message: $_" )
-            Write-Error "Error: Failed to execute the 'Get-AzPolicyAssignment' command for scope '$($tempId)'--verify your permissions and the installion of the Az.Resources module; returned error message: $_"                
+            $Errorlist.Value.Add("Failed to execute the 'Search-AzGraph' command for scope '$($tempId)'--verify your permissions and the installation of the Az.ResourceGraph module; returned error message: $_" )
+            Write-Error "Error: Failed to execute the 'Search-AzGraph' command for scope '$($tempId)'--verify your permissions and the installation of the Az.ResourceGraph module; returned error message: $_"                
         }
         If (($null -eq $AssignedPolicyList -and $null -eq $AssignedInitiatives) -or ((-not ([string]::IsNullOrEmpty(($AssignedPolicyList.Properties.NotScopesScope)))) -or (-not ([string]::IsNullOrEmpty(($AssignedInitiatives.Properties.NotScopesScope))))))
         {
@@ -219,4 +247,3 @@ function Verify-AllowedLocationPolicy {
     }
     return $moduleOutput
 }
-
