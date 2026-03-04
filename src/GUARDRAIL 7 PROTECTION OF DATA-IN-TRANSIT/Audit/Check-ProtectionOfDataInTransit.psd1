@@ -14,7 +14,7 @@
 RootModule = 'Check-ProtectionOfDataInTransit'
 
 # Version number of this module.
-ModuleVersion = '1.2.6'
+ModuleVersion = '1.3.0'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
