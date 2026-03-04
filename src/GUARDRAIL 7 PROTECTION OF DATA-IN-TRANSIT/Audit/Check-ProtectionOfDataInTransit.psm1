@@ -4,17 +4,13 @@ function Test-ExemptionExists {
         [array]  $requiredPolicyExemptionIds
     )
     $exemptionsIds=(Get-AzPolicyExemption -Scope $ScopeId -ErrorAction SilentlyContinue).Properties.PolicyDefinitionReferenceIds
-    [PSCustomObject] $policyExemptionList = New-Object System.Collections.ArrayList
-
-    $isExempt = $false
+    [System.Collections.ArrayList] $policyExemptionList = New-Object System.Collections.ArrayList
 
     if ($null -ne $exemptionsIds)
     {
         foreach ($exemptionId in $exemptionsIds)
         {
-            if ($exemptionId -in $requiredPolicyExemptionIds){
-                $isExempt = $true 
-            }
+            $isExempt = $exemptionId -in $requiredPolicyExemptionIds
             $result = [PSCustomObject] @{
                 isExempt = $isExempt 
                 exemptionId = $exemptionId
@@ -84,7 +80,7 @@ function Check-StatusDataInTransit {
         [string] $ModuleProfiles,
         [switch] $EnableMultiCloudProfiles # New feature flag, default to false    
     )   
-    [PSCustomObject] $tempObjectList = New-Object System.Collections.ArrayList
+    [System.Collections.ArrayList] $tempObjectList = New-Object System.Collections.ArrayList
 
     foreach ($obj in $objList)
     {
@@ -133,9 +129,7 @@ function Check-StatusDataInTransit {
                 $exemptList = $policyExemptionList.exemptionId
                 if ($ExemptList.Count -gt 0){   
                     # join all exempt policies to a string
-                    if(-not($null -eq $exemptList)){
-                        $exemptListAllPolicies = $exemptList -join ", "
-                    }
+                    $exemptListAllPolicies = $exemptList -join ", "
                     # boolean, exemption for GR7 required policies exists.
                     $ComplianceStatus=$false
                     $Comment += ' '+ $msgTable.grExemptionFound -f $exemptListAllPolicies
