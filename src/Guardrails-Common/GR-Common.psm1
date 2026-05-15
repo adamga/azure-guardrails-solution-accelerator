@@ -630,24 +630,11 @@ function Get-EvaluationProfile {
 
         $profileTagValuesArray = ConvertTo-IntArray $profileTagValues
 
-        # Get the highest profile from all sources
-        $highestCloudUsageProfile = ($cloudUsageProfileArray | Measure-Object -Maximum).Maximum
-        $highestModuleProfile = ($moduleProfileArray | Measure-Object -Maximum).Maximum
         $highestTagProfile = ($profileTagValuesArray | Measure-Object -Maximum).Maximum
 
-        # Use the highest profile if it's present in the module profiles
-        if ($highestTagProfile -in $moduleProfileArray) {
-            return [PSCustomObject]@{
-                Profile = $highestTagProfile
-                ShouldEvaluate = ($highestTagProfile -in $cloudUsageProfileArray)
-            }
-        }
-
-        # Otherwise, use the highest matching profile that doesn't exceed the module profile
-        $highestMatchingProfile = Get-HighestMatchingProfile $cloudUsageProfileArray $moduleProfileArray
         return [PSCustomObject]@{
-            Profile = $highestMatchingProfile
-            ShouldEvaluate = ($highestMatchingProfile -in $cloudUsageProfileArray)
+            Profile = $highestTagProfile
+            ShouldEvaluate = (($highestTagProfile -in $moduleProfileArray) -and ($highestTagProfile -in $cloudUsageProfileArray))
         }
     }
     catch {
@@ -1021,6 +1008,5 @@ function Get-allowedLocationCAPCompliance {
 }
 
 # endregion
-
 
 
